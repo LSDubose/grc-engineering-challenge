@@ -13,7 +13,7 @@ Most teams don't have this. I'm building it in public.
 | Week | Layer | Status |
 |------|-------|--------|
 | 1 | Compliant Resource — Terraform S3 with encryption, versioning, public access block, access logging, and auto-tagging | ✅ Complete |
-| 2 | Policy as Code — executable rules that prove the controls from week 1 are in place | 🔜 |
+| 2 | Policy as Code — executable rules that prove the controls from week 1 are in place | ✅ Complete |
 | 3 | CI Pipeline Gate — runs on every PR, blocks any configuration that breaks a control | 🔜 |
 | 4 | Signed Evidence — chain of custody on every pipeline run, keyless signing | 🔜 |
 | 5 | Native Cloud Controls — monitoring controls, findings captured as evidence | 🔜 |
@@ -54,6 +54,36 @@ mkdir -p evidence
 terraform show -json tfplan > evidence/plan.json
 terraform apply "tfplan"
 ./verify.sh
+```
+
+---
+
+## Week 2: Make the Rules Executable
+
+I wrote policy as code using Rego and OPA — three policies that read a Terraform plan and automatically prove the controls from week 1 are in place. If a control is missing, the policy fires a denial with a message that names the resource and the fix.
+
+**Policies written:**
+
+| Policy | Control | What it checks |
+|--------|---------|----------------|
+| `sc28_encryption_aws.rego` | SC-28 | Every S3 bucket has a matching encryption configuration |
+| `ac3_no_public_aws.rego` | AC-3 | Every S3 bucket has a public access block |
+| `cm6_required_tags_aws.rego` | CM-6 | Every resource carries all four required compliance tags |
+
+**Result:** 6/6 tests passing — compliant plans pass, non-compliant plans are denied with a specific message.
+
+**Key technique:** At plan time, resource names are unknown because the random suffix hasn't been generated yet. Match by reference, not value — `input.configuration.root_module.resources[].expressions.bucket.references` holds strings like `"aws_s3_bucket.primary.id"` that you can match against.
+
+**Files:**
+- `policies/sc28_encryption_aws.rego` — encryption policy
+- `policies/ac3_no_public_aws.rego` — public access policy
+- `policies/cm6_required_tags_aws.rego` — required tags policy
+- `policies/*_test.rego` — unit tests for each policy
+
+**To run it:**
+```bash
+cd week-2
+opa test policies/ -v
 ```
 
 ---
